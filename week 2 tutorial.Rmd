@@ -1,0 +1,346 @@
+---
+title: 'Week 2: Data Exploration and Summaries a tutorial'
+output:
+  ioslides_presentation: default
+  slidy_presentation: default
+---
+
+## Coastal Ecology
+
+Instructors: Cale Miller and Valérie Reijers
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introducing R
+
+R can also create different data "objects":
+```{r}
+(myvector <- c(1,2,3))
+(myvector2 <- c("one","two","three"))
+
+(mymatrix <- cbind(myvector, myvector2))
+
+(mydataframe <- as.data.frame(mymatrix)) 
+```
+
+# Introduction to Working Directories
+
+
+## Setting a Working Directory
+
+- **Definition**: The working directory is the default folder where R reads and saves files.
+
+- **Why Set It?** 
+  - Setting a working directory helps you organize and locate your files easily.
+  - Useful when loading and saving data within R projects.
+
+```{r, eval=TRUE}
+
+# Check current working directory
+getwd()
+
+# To set your working directory: path where your spreadsheet is saved
+setwd("/Users/calemiller/Desktop/Utrecht Lab/Courses to teach/Coastal ecology/2024-2025/Practicals/Week 2_data Exploration") 
+
+
+```
+
+# Load data from a CSV file
+
+Establishing cordgrass plants cluster their shoots to avoid ecosystem engineering
+
+https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/1365-2435.14302
+```{r, eval=TRUE}
+my_data_1 <- read.csv("FieldData_survey.csv")
+
+
+# View the top of your data
+head(my_data_1)
+
+# View structure of data
+str(my_data_1)
+
+# View data in RStudio Viewer
+View(my_data_1)
+
+# Get a summary of data
+summary(my_data_1)
+```
+
+
+Looking at the data
+
+```{r, eval=TRUE}
+Field_data <- my_data_1 #rename to a real object name
+
+OM = hist(Field_data$organicmatter)
+
+```
+
+Does not tell us too much. Let's separate by location and group each location's data
+
+```{r, eval=TRUE}
+# Split data by location: A List of 18 named numeric vectors (dataframe)
+OM_location <- split(Field_data$organicmatter, Field_data$location)
+
+# Set up plotting area
+par(mfrow = c(length(OM_location), 1)) 
+#par = quieries graphical paramters, mfrow plotting space
+# https://bookdown.org/ndphillips/YaRrr/arranging-plots-with-parmfrow-and-layout.html
+
+# Plot histograms for each subset
+lapply(names(OM_location), function(loc) {
+  hist(OM_location[[loc]], main = paste("OM Distribution for", loc), 
+       xlab = "Organic Matter (OM)", 
+       col = "skyblue", 
+       border = "black", 
+       breaks = 10)
+})
+
+#lapply applies a function to all the variables in a list within a dataframe
+
+```
+
+
+## Summarizing Data for Populations and Samples
+
+Central Tendancy:
+a measure of central tendancy is a summary measure that represents the center point of a whole data set and indicates central location of the data, including the mean, median and mode.
+
+Populations: mean, $\mu$
+
+Samples: average, $\bar{Y}$
+
+
+Dispersion (spread):
+measures of dispersion are important parameters and statistics that describe the spread of the data around its central measure, including variance, standard deviation and range.
+
+Populations: population variance, ${\sigma}^2$ or standard deviation $\sigma$
+
+Samples: sample variance, $S^2$ or sample standard deviation, $S$
+
+
+Which mean is best for comparing across different locations? 
+```{r, eval=TRUE}
+
+#sapply function performed on list and gives a vector or matrix results
+  Art_mean_OM = sapply(OM_location, mean)         # Apply mean to each group
+  Art_SD_OM = sapply(OM_location, sd)             # Apply SD to each group
+  
+#Create function for geometric mean
+  geometric.mean <- function(x, na.rm = TRUE) {
+  if (na.rm) x <- x[!is.na(x)] # Remove NA values
+  prod(x)^(1/length(x))
+}
+  
+  Gmean_OM = sapply(OM_location, geometric.mean)        
+   
+#Install the psych package (for harmonic mean)
+#install.packages("psych")
+# Load the psych library
+library(psych)
+
+  Hmean_OM = sapply(OM_location, harmonic.mean)        
+   
+# Define functions for geometric and harmonic standard deviations
+geometric.sd <- function(x) {
+  log_vals <- log(x)
+  gsd <- exp(sqrt(sum((log_vals - mean(log_vals))^2) / (length(x) - 1)))
+  return(gsd)
+}
+
+harmonic.sd <- function(x) {
+  # Variance calculation based on harmonic mean deviations
+  hm <- harmonic.mean(x)
+  deviations <- (1 / x) - (1 / hm)
+  hsd <- sqrt(sum(deviations^2) / (length(x) - 1))
+  return(hsd)
+}
+
+# Compute geometric and harmonic standard deviations
+GSD_OM <- sapply(OM_location, geometric.sd)
+HSD_OM <- sapply(OM_location, harmonic.sd)
+  
+```
+
+ 
+```{r}
+# Combine results into a data frame for plotting
+means_OM <- data.frame(
+  Location = names(OM_location),
+  Arithmetic = Art_mean_OM,
+  Geometric = Gmean_OM,
+  Harmonic = Hmean_OM,
+  Arithmetic_SD = Art_SD_OM,
+  Geometric_SD = GSD_OM,
+  Harmonic_SD = HSD_OM
+)
+
+# Plotting means and standard deviations
+barplot_heights <- t(as.matrix(means_OM[, c("Arithmetic", "Geometric", "Harmonic")])) #t() transpose
+colnames(barplot_heights) <- means_OM$Location
+
+# Barplot
+bar_positions <- barplot(
+  barplot_heights,
+  beside = TRUE,
+  col = c("skyblue", "grey", "red"),
+  ylim = c(0, max(barplot_heights) + 2),
+  ylab = "Mean Values",
+  xlab = "Locations",
+  main = "Comparison of Means Across Locations"
+)
+legend(
+  "topleft",
+  legend = c("Arithmetic Mean", "Geometric Mean", "Harmonic Mean"),
+  fill = c("skyblue", "grey", "red")
+)
+
+# Adding error bars for each group
+for (i in seq_len(nrow(barplot_heights))) {
+  # Access the correct standard deviation column dynamically
+  sd_col <- paste0(rownames(barplot_heights)[i], "_SD")
+  
+  #arrows identifies range of uncertainty fro errorbar
+  arrows(
+    x0 = bar_positions[i, ],
+    y0 = barplot_heights[i, ] - means_OM[[sd_col]],
+    y1 = barplot_heights[i, ] + means_OM[[sd_col]],
+    angle = 90,
+    code = 0,
+    length = 0.1,
+    col = "black"
+  )
+}
+
+
+``` 
+ 
+
+## Five Number Summary
+
+Includes the minimum (lower fence), 1st quartile (lower hinge), median, 3rd quartile (upper hinge) and maximum (upper fence) values of the dataset.
+
+
+
+```{r}
+(fivenum(Field_data$density_m2))
+help(fivenum)
+#Upper fence is Q3 + 1.5xIQR
+```
+
+```{r, echo=FALSE}
+{boxplot(Field_data$density_m2) # enter the data frame name, $ and the variable name to designate the data used by boxplot
+text(x = 0.6, y = 400, labels = "median")
+text(x = 0.6, y = fivenum(Field_data$density_m2)[4], labels = "3rd quartile")
+text(x = 1.35, y = fivenum(Field_data$density_m2)[4], labels = "upper hinge")
+text(x = 0.6, y = max(Field_data$density_m2), labels = "maximum")
+text(x = 1.35, y = , labels = "upper fence")
+text(x = 0.6, y = min(Field_data$density_m2), labels = "minimum")
+text(x = 1.35, y = , labels = "lower fence")
+text(x = 0.6, y = fivenum(Field_data$density_m2)[2], labels = "1st quartile")
+text(x = 1.35, y = fivenum(Field_data$density_m2)[2], labels = "lower hinge")
+}
+```
+
+The boxplot calculates the fences as the most extreme data point no more than 1.5 times the interquartile range. Anything outside of this is considered an outlier.
+
+
+What if we wanted to know the probability of observing exactly 20 plots with densities > the 25th percentile out of all locations, what probability distribution could we use? 
+
+
+
+## Calculate probability of cordgrass density
+```{r, echo=FALSE}
+Bio_prob <-    #Let's choose the 3rd quartile 
+n_binomo <-    #Total number of plots 90
+plots_of_interest <-     #Number of plots we are interested in  
+dbinom(plots_of_interest, size = n_binomo, p = Bio_prob) #function for a binomial distribution
+
+# Success or failure: two outcomes
+
+```
+
+
+What probability distribution can we use if want to know the number of plots > the 25th percentile over a fixed number of observations?
+
+Thus, we treat the probability as a rate of occurrence per plot observed
+
+
+
+```{r, echo=FALSE}
+
+# Calculate the Poisson distribution
+lambda <-   # Estimated rate of success (25% of plots have density >= 373)
+poisson_prob <- dpois(20, lambda * 20)  # The probability of exactly 20 plots
+
+poisson_prob
+```
+
+
+## Conclusion: 
+
+Binomial Distribution: 
+1) Best suited for binary outcomes (success/failure) 
+2) Fixed number of trials (20 plots), 
+3) A known probability of success for each trial (the probability that a plot has a density ≥373).
+
+Poisson Distribution: Can be used if you want to model the rate of occurrence of events,
+                      -Generally used for counting rare events in continuous space or time.
+
+For statistical tests, we often use the Chi square goodness of fit for these distributions to compare how well our data fits the expected poisson distribution.
+
+
+
+## Question
+
+If we wanted to count and compare the number of shoots in a plot with the 3rd quartile, is this the same question or different? Explain. 
+
+```{r, echo=FALSE}
+
+Chord_density = hist(Field_data$density_m2)
+
+```
+
+How does the distribution look? 
+
+```{r, echo=FALSE}
+
+log_Chord_density <- hist(log(Field_data$density_m2))
+
+```
+
+
+
+## Plot a normal distribution
+```{r, echo=FALSE}
+x <- seq(-4, 4, length=100)
+y <- dnorm(x, mean=0, sd=1)
+plot(x, y, type="l", main="Normal Distribution (mean=0, sd=1)", ylab="Density")
+```
+
+
+
+How can we estimate the probability of observing a plot with a density > the 3rd quartile density
+
+
+```{r, echo=TRUE}
+
+
+# Calculate mean and SD
+mean_density <- mean(log(Field_data$density_m2))  # Replace shoot_density_data with your data
+sd_density <- sd(log(Field_data$density_m2))
+
+
+# Calculate the probability of observing >= 3rd quartile of shoot density
+prob <- pnorm(373.5, mean = mean_density, sd = sd_density, lower.tail = FALSE)
+
+# Display the result
+prob
+```
+
+What kind if test is this? 
+
+
