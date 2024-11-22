@@ -254,9 +254,9 @@ What if we wanted to know the probability of observing exactly 20 plots with den
 
 ## Calculate probability of cordgrass density
 ```{r, echo=FALSE}
-Bio_prob <-    #Let's choose the 3rd quartile 
-n_binomo <-    #Total number of plots 90
-plots_of_interest <-     #Number of plots we are interested in  
+Bio_prob <- 0.25   #Let's choose the 3rd quartile 
+n_binomo <- 90   #Total number of plots 90
+plots_of_interest <- 20    #Number of plots we are interested in  
 dbinom(plots_of_interest, size = n_binomo, p = Bio_prob) #function for a binomial distribution
 
 # Success or failure: two outcomes
